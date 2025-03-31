@@ -1,166 +1,444 @@
 import 'package:flutter/material.dart';
-import 'package:wetools/pages/base64_page.dart';
-import 'package:wetools/pages/hash_page.dart';
-import 'package:wetools/pages/json_page.dart';
-import 'package:wetools/pages/jwt_page.dart';
-import 'package:wetools/pages/text_page.dart';
-import 'package:wetools/pages/url_page.dart';
-import 'package:wetools/pages/process_page.dart';
-import 'time_page.dart';
-import 'translate_page.dart';
-import 'http_page.dart';
-import 'tcp_page.dart';
-import 'ip_page.dart';
-import 'email_page.dart';
-import 'clipboard_page.dart';
-import 'hosts_page.dart';
-import 'ftp_page.dart';
+import '../models/tool_model.dart';
+import '../data/tools_data.dart';
+import '../widgets/breadcrumb_navigation.dart';
 
 class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
   final String title;
+  final String? initialToolId;
+  final String? initialGroupId;
+  final bool scrollToTop;
+
+  const MyHomePage({
+    Key? key,
+    required this.title,
+    this.initialToolId,
+    this.initialGroupId,
+    this.scrollToTop = false,
+  }) : super(key: key);
 
   @override
   State<MyHomePage> createState() => _MyHomePageState();
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _selectedIndex = 0;
+  final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  final Map<String, GlobalKey> _groupKeys = {};
+  final GlobalKey _searchResultsKey = GlobalKey();
 
-  final List<NavigationRailDestination> _destinations = const [
-    // 文本处理类
-    NavigationRailDestination(
-      icon: Icon(Icons.text_fields),
-      label: Text('文本'),
-    ),
-    NavigationRailDestination(
-      icon: Icon(Icons.translate),
-      label: Text('翻译'),
-    ),
-    // 编码解码类
-    NavigationRailDestination(
-      icon: Icon(Icons.link),
-      label: Text('URL'),
-    ),
-    NavigationRailDestination(
-      icon: Icon(Icons.code),
-      label: Text('Base64'),
-    ),
-    NavigationRailDestination(
-      icon: Icon(Icons.data_object),
-      label: Text('JSON'),
-    ),
-    NavigationRailDestination(
-      icon: Icon(Icons.key),
-      label: Text('JWT'),
-    ),
-    // 安全工具类
-    NavigationRailDestination(
-      icon: Icon(Icons.security),
-      label: Text('Hash'),
-    ),
-    // 网络工具类
-    NavigationRailDestination(
-      icon: Icon(Icons.http),
-      label: Text('HTTP'),
-    ),
-    NavigationRailDestination(
-      icon: Icon(Icons.lan),
-      label: Text('TCP'),
-    ),
-    NavigationRailDestination(
-      icon: Icon(Icons.public),
-      label: Text('IP'),
-    ),
-    // 其他工具类
-    NavigationRailDestination(
-      icon: Icon(Icons.timer),
-      label: Text('时间'),
-    ),
-    NavigationRailDestination(
-      icon: Icon(Icons.email),
-      label: Text('邮件'),
-    ),
-    NavigationRailDestination(
-      icon: Icon(Icons.content_paste),
-      label: Text('剪贴板'),
-    ),
-    // 系统工具类
-    NavigationRailDestination(
-      icon: Icon(Icons.memory),
-      label: Text('进程'),
-    ),
-    NavigationRailDestination(
-      icon: Icon(Icons.dns),
-      label: Text('Hosts'),
-    ),
-    NavigationRailDestination(
-      icon: Icon(Icons.folder_shared_outlined),
-      selectedIcon: Icon(Icons.folder_shared),
-      label: Text('文件共享'),
-    ),
-  ];
+  List<ToolModel> _searchResults = [];
+  ToolModel? _selectedTool;
+  ToolGroup? _selectedGroup;
+  bool _isSearching = false;
+  bool _showToolDetail = false;
 
-  final List<({Widget page, String label})> _pages = const [
-    // 文本处理类
-    (page: TextPage(), label: '文本'),
-    (page: TranslatePage(), label: '翻译'),
-    // 编码解码类
-    (page: UrlPage(), label: 'URL'),
-    (page: Base64Page(), label: 'Base64'),
-    (page: JsonPage(), label: 'JSON'),
-    (page: JwtPage(), label: 'JWT'),
-    // 安全工具类
-    (page: HashPage(), label: 'Hash'),
-    // 网络工具类
-    (page: HttpPage(), label: 'HTTP'),
-    (page: TcpPage(), label: 'TCP'),
-    (page: IpPage(), label: 'IP'),
-    // 其他工具类
-    (page: TimePage(), label: '时间'),
-    (page: EmailPage(), label: '邮件'),
-    (page: ClipboardPage(), label: '剪贴板'),
-    // 系统工具类
-    (page: ProcessPage(), label: '进程'),
-    (page: HostsPage(), label: 'Hosts'),
-    (page: FtpPage(), label: '文件共享'),
-  ];
+  @override
+  void initState() {
+    super.initState();
+
+    // 为每个分组创建一个Key，用于滚动定位
+    for (var group in ToolsData.groups) {
+      _groupKeys[group.id] = GlobalKey();
+    }
+
+    // 处理初始化参数
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _handleInitialNavigation();
+    });
+  }
+
+  void _handleInitialNavigation() {
+    if (widget.scrollToTop) {
+      _scrollToTop();
+      return;
+    }
+
+    if (widget.initialToolId != null) {
+      final tool = ToolsData.getToolById(widget.initialToolId!);
+      if (tool != null) {
+        setState(() {
+          _selectedTool = tool;
+          _showToolDetail = true;
+        });
+        return;
+      }
+    }
+
+    if (widget.initialGroupId != null) {
+      final group = ToolsData.getGroupById(widget.initialGroupId!);
+      if (group != null) {
+        _scrollToGroup(group.id);
+        setState(() {
+          _selectedGroup = group;
+        });
+      }
+    }
+  }
+
+  void _scrollToTop() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  void _scrollToGroup(String groupId) {
+    final key = _groupKeys[groupId];
+    if (key?.currentContext != null) {
+      Scrollable.ensureVisible(
+        key!.currentContext!,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  void _scrollToSearchResults() {
+    if (_searchResultsKey.currentContext != null) {
+      Scrollable.ensureVisible(
+        _searchResultsKey.currentContext!,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  void _handleSearch(String query) {
+    setState(() {
+      _isSearching = query.isNotEmpty;
+      _searchResults = ToolsData.searchTools(query);
+      _showToolDetail = false;
+      _selectedTool = null;
+      _selectedGroup = null;
+    });
+
+    if (_isSearching && _searchResults.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToSearchResults();
+      });
+    }
+  }
+
+  void _openTool(ToolModel tool) {
+    setState(() {
+      _selectedTool = tool;
+      _showToolDetail = true;
+      _searchController.clear();
+      _isSearching = false;
+      _searchResults = [];
+    });
+  }
+
+  void _selectGroup(ToolGroup group) {
+    setState(() {
+      _selectedGroup = group;
+      _selectedTool = null;
+      _showToolDetail = false;
+      _searchController.clear();
+      _isSearching = false;
+      _searchResults = [];
+    });
+    _scrollToGroup(group.id);
+  }
+
+  void _goHome() {
+    setState(() {
+      _selectedTool = null;
+      _selectedGroup = null;
+      _showToolDetail = false;
+      _searchController.clear();
+      _isSearching = false;
+      _searchResults = [];
+    });
+    _scrollToTop();
+  }
+
+  List<BreadcrumbItem> _buildBreadcrumbs() {
+    final items = <BreadcrumbItem>[];
+
+    // 首页
+    items.add(BreadcrumbItem(
+      title: '首页',
+      onTap: _goHome,
+      isLast: _selectedTool == null && _selectedGroup == null && !_isSearching,
+    ));
+
+    // 搜索结果
+    if (_isSearching) {
+      items.add(BreadcrumbItem(
+        title: '搜索结果',
+        onTap: () {},
+        isLast: true,
+      ));
+      return items;
+    }
+
+    // 分组
+    if (_selectedGroup != null) {
+      items.add(BreadcrumbItem(
+        title: _selectedGroup!.name,
+        onTap: () => _selectGroup(_selectedGroup!),
+        isLast: _selectedTool == null,
+      ));
+    }
+
+    // 工具
+    if (_selectedTool != null) {
+      // 如果没有选择分组，但有选择工具，则添加工具所属分组
+      if (_selectedGroup == null) {
+        final group = ToolsData.getGroupById(_selectedTool!.groupId);
+        if (group != null) {
+          items.add(BreadcrumbItem(
+            title: group.name,
+            onTap: () => _selectGroup(group),
+            isLast: false,
+          ));
+        }
+      }
+
+      items.add(BreadcrumbItem(
+        title: _selectedTool!.name,
+        onTap: () {},
+        isLast: true,
+      ));
+    }
+
+    return items;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Row(
+      body: Column(
         children: [
-          SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                minHeight: MediaQuery.of(context).size.height,
-              ),
-              child: IntrinsicHeight(
-                child: NavigationRail(
-                  selectedIndex: _selectedIndex,
-                  onDestinationSelected: (int index) {
-                    setState(() {
-                      _selectedIndex = index;
-                    });
-                  },
-                  labelType: NavigationRailLabelType.all,
-                  destinations: _destinations,
-                  minWidth: 85, // 设置最小宽度，避免文字换行
-                  useIndicator: true, // 使用指示器
-                  groupAlignment: -1, // 将项目对齐到顶部
-                  backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          // 面包屑导航
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 1,
+                  offset: const Offset(0, 1),
                 ),
-              ),
+              ],
+            ),
+            child: Row(
+              children: [
+                BreadcrumbNavigation(items: _buildBreadcrumbs()),
+                const Spacer(),
+                // 搜索框
+                SizedBox(
+                  width: 300,
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: '搜索工具...',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                _searchController.clear();
+                                _handleSearch('');
+                              },
+                            )
+                          : null,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(30),
+                        borderSide: BorderSide.none,
+                      ),
+                      filled: true,
+                      fillColor: Theme.of(context)
+                          .colorScheme
+                          .surfaceVariant
+                          .withOpacity(0.5),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                    ),
+                    onChanged: _handleSearch,
+                  ),
+                ),
+              ],
             ),
           ),
-          const VerticalDivider(thickness: 1, width: 1),
+
+          // 主内容区域
           Expanded(
-            child: _pages[_selectedIndex].page,
+            child: _showToolDetail ? _buildToolDetailPage() : _buildHomePage(),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildToolDetailPage() {
+    if (_selectedTool == null) return const SizedBox.shrink();
+    return _selectedTool!.page;
+  }
+
+  Widget _buildHomePage() {
+    return ListView(
+      controller: _scrollController,
+      padding: const EdgeInsets.all(16),
+      children: [
+        // 搜索结果
+        if (_isSearching) ...[
+          Container(
+            key: _searchResultsKey,
+            margin: const EdgeInsets.only(bottom: 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '搜索结果 (${_searchResults.length})',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 16),
+                if (_searchResults.isEmpty)
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(32.0),
+                      child: Text('没有找到匹配的工具'),
+                    ),
+                  )
+                else
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 4,
+                      childAspectRatio: 1.5,
+                      crossAxisSpacing: 16,
+                      mainAxisSpacing: 16,
+                    ),
+                    itemCount: _searchResults.length,
+                    itemBuilder: (context, index) {
+                      final tool = _searchResults[index];
+                      return _buildToolCard(tool);
+                    },
+                  ),
+              ],
+            ),
+          ),
+        ],
+
+        // 工具分组
+        ...ToolsData.groups.map((group) {
+          final groupTools = ToolsData.getToolsByGroup(group.id);
+          return Container(
+            key: _groupKeys[group.id],
+            margin: const EdgeInsets.only(bottom: 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      group.icon,
+                      color: group.color,
+                      size: 24,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      group.name,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      group.description,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurface
+                                .withOpacity(0.6),
+                          ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 4,
+                    childAspectRatio: 1.5,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                  ),
+                  itemCount: groupTools.length,
+                  itemBuilder: (context, index) {
+                    final tool = groupTools[index];
+                    return _buildToolCard(tool);
+                  },
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ],
+    );
+  }
+
+  Widget _buildToolCard(ToolModel tool) {
+    final group = ToolsData.getGroupById(tool.groupId);
+    final color = group?.color ?? Colors.grey;
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: InkWell(
+        onTap: () => _openTool(tool),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                tool.icon,
+                size: 32,
+                color: color,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                tool.name,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                tool.description,
+                style: TextStyle(
+                  fontSize: 12,
+                  color:
+                      Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _scrollController.dispose();
+    super.dispose();
   }
 }

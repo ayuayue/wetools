@@ -401,7 +401,11 @@ class _AppFrameState extends State<AppFrame> with WindowListener, TrayListener {
                 ],
               )),
           if (Platform.isWindows) _buildMenuBar(context),
-          const Expanded(child: MyHomePage(title: '开发者工具箱')),
+          const Expanded(
+              child: MyHomePage(
+            title: '开发者工具箱',
+            scrollToTop: true,
+          )),
         ],
       ),
     );
