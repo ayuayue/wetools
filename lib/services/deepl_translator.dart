@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class DeepLTranslator {
-  static const String _endpoint = "https://api.deeplx.org/FHHtf1Ha67HsVpJwasdjJIRMBSibJVL9ZEJ8nwhUOsU/translate";
+  static const String _endpoint = "https://api.deeplx.org/GrsQtQjzGxiuxock-cNP-nPZrX1hmSeZ8pXQg5JislM/translate";
   // static const String _endpoint = "https://deeplx.caoayu.top/translate";
 
   Future<String> translate(
